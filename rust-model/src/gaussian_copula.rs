@@ -37,7 +37,7 @@ impl GaussianCopula {
         self.symbols.sort();
         
         for (symbol, data) in data_by_symbol {
-            if data.len() < 30 {
+            if data.len() < 5 {
                 continue;
             }
             
@@ -202,14 +202,15 @@ impl GaussianCopula {
         
         let values: Vec<f64> = simulations.iter()
             .filter_map(|sim| sim.get(symbol).copied())
+            .filter(|&v| !v.is_nan() && v.is_finite())
             .collect();
         
         if values.is_empty() {
             return vec![0.0; n_bins];
         }
         
-        let min_val = *values.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
-        let max_val = *values.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap();
+        let min_val = values.iter().copied().fold(f64::INFINITY, f64::min);
+        let max_val = values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         
         if (max_val - min_val).abs() < 1e-10 {
             let mut dist = vec![0.0; n_bins];

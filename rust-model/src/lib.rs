@@ -27,19 +27,22 @@ impl ModelPipeline {
             random_forest: RandomForest::new(100, 20, 5, 10),
             gaussian_copula: GaussianCopula::new(),
             betafish_search: BetafishSearch::new(30, 5),
-            exa_search: ExaSearch::new(0.6, 5),
+            exa_search: ExaSearch::new(0.01, 5),
         }
     }
     
     pub fn train(&mut self, data_by_symbol: &HashMap<String, Vec<EquityData>>) {
         let mut all_samples = Vec::new();
         
-        for (symbol, equity_data) in data_by_symbol {
-            if equity_data.len() < 60 {
+        let min_records = 25;
+        let lookback = 5;
+        
+        for (_symbol, equity_data) in data_by_symbol {
+            if equity_data.len() < min_records {
                 continue;
             }
             
-            for i in 10..equity_data.len() - 1 {
+            for i in lookback..equity_data.len() - 1 {
                 let future_return = (equity_data[i + 1].close - equity_data[i].close) 
                     / equity_data[i].close * 100.0;
                 
@@ -49,6 +52,10 @@ impl ModelPipeline {
         }
         
         println!("Training Random Forest with {} samples...", all_samples.len());
+        if all_samples.is_empty() {
+            println!("Warning: Not enough data for training");
+            return;
+        }
         self.random_forest.fit(&all_samples);
         
         println!("Training Gaussian Copula...");

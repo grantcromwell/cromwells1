@@ -1,15 +1,20 @@
 package com.financial.backend.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 import java.util.Map;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class EquityData {
     @JsonProperty("symbol")
     private String symbol;
     
     @JsonProperty("timestamp")
     private long timestamp;
+    
+    @JsonProperty("date")
+    private String date;
     
     @JsonProperty("open")
     private double open;
@@ -57,6 +62,9 @@ public class EquityData {
     
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
+    
+    public String getDate() { return date; }
+    public void setDate(String date) { this.date = date; }
     
     public double getOpen() { return open; }
     public void setOpen(double open) { this.open = open; }

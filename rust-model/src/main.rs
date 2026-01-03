@@ -1,21 +1,129 @@
 use rust_model::{ModelPipeline, EquityData};
 use std::collections::HashMap;
+use redis::RedisResult;
+
+#[derive(Debug, serde::Deserialize)]
+struct RedisEquityData {
+    symbol: String,
+    timestamp: u64,
+    open: f64,
+    high: f64,
+    low: f64,
+    close: f64,
+    volume: i64,
+}
 
 fn main() {
     println!("Financial Forecasting Model Pipeline");
     println!("=====================================\n");
     
+    println!("Fetching real historical data from Redis...");
+    let data_by_symbol = fetch_from_redis();
+    
+    let total_records: usize = data_by_symbol.values().map(|v| v.len()).sum();
+    println!("Loaded {} records for {} symbols\n", 
+             total_records, data_by_symbol.len());
+    
+    if total_records == 0 {
+        println!("No data found in Redis! Please run download_historical.py first.");
+        std::process::exit(1);
+    }
+    
+    let days = 240; // 240-day analysis window
+    run_analysis(&data_by_symbol, days);
+}
+
+fn fetch_from_redis() -> HashMap<String, Vec<EquityData>> {
+    let client = redis::Client::open("redis://localhost").expect("Failed to connect to Redis");
+    let mut con = client.get_connection().expect("Failed to get Redis connection");
+    
+    let symbols = vec![
+        "MNQ", "NVDA", "AMD", "WDC", "SLV", 
+        "GS", "NET", "EWJ", "EURUSD", "INRJPY", 
+        "STLD", "CRCL", "UBS", "TTWO", "ETHUSD"
+    ];
+    
+    let mut data_by_symbol: HashMap<String, Vec<EquityData>> = HashMap::new();
+    
+    for symbol in &symbols {
+        println!("Fetching {} from Redis...", symbol);
+        
+        let pattern = format!("equity:{}:*", symbol);
+        let keys: Vec<String> = redis::cmd("KEYS")
+            .arg(&pattern)
+            .query(&mut con)
+            .expect("Failed to fetch keys");
+        
+        if keys.is_empty() {
+            println!("  No data found for {}", symbol);
+            continue;
+        }
+        
+        // Get values for all keys
+        let mut values: Vec<(String, String)> = Vec::new();
+        for key in &keys {
+            let value: String = redis::cmd("GET")
+                .arg(key)
+                .query(&mut con)
+                .expect("Failed to get value");
+            values.push((key.clone(), value));
+        }
+        
+        // Sort by timestamp
+        values.sort_by_key(|(k, _)| {
+            let parts: Vec<&str> = k.split(':').collect();
+            parts[2].parse::<u64>().unwrap_or(0)
+        });
+        
+        let mut data = Vec::new();
+        for (key, value) in &values {
+            match serde_json::from_str::<RedisEquityData>(value) {
+                Ok(redis_data) => {
+                    let equity = EquityData {
+                        symbol: redis_data.symbol,
+                        timestamp: redis_data.timestamp as i64,
+                        open: redis_data.open,
+                        high: redis_data.high,
+                        low: redis_data.low,
+                        close: redis_data.close,
+                        volume: redis_data.volume as f64,
+                        adjusted_close: redis_data.close,
+                        moving_averages: None,
+                        rsi: None,
+                        macd: None,
+                    };
+                    data.push(equity);
+                }
+                Err(e) => {
+                    println!("  Failed to parse {}: {}", key, e);
+                }
+            }
+        }
+        
+        if !data.is_empty() {
+            println!("  Loaded {} records", data.len());
+            data_by_symbol.insert(symbol.to_string(), data);
+        }
+    }
+    
+    data_by_symbol
+}
+
+fn run_analysis(data_by_symbol: &HashMap<String, Vec<EquityData>>, days: i64) {
     let mut pipeline = ModelPipeline::new();
     
-    let data_by_symbol = generate_sample_data();
-    println!("Generated data for {} symbols\n", data_by_symbol.len());
-    
-    println!("Training models...");
-    pipeline.train(&data_by_symbol);
+    println!("Training models on real historical data ({} days)...", days);
+    pipeline.train(data_by_symbol);
     println!("Training complete!\n");
     
-    println!("=== Strongest Movers (Alpha Search) ===");
-    let strongest_movers = pipeline.get_strongest_movers(&data_by_symbol);
+    let window_label = match days {
+        50 => "50-Day",
+        100 => "100-Day",
+        _ => &format!("{}-Day", days),
+    };
+    
+    println!("=== Strongest Movers (Alpha Search - Real Data) ===");
+    let strongest_movers = pipeline.get_strongest_movers(data_by_symbol);
     for result in &strongest_movers {
         let prob_pct = result.probability * 100.0;
         let change_pct = result.change;
@@ -24,14 +132,14 @@ fn main() {
     }
     
     println!("\n=== Highest Volume ===");
-    let highest_volume = pipeline.get_highest_volume(&data_by_symbol);
+    let highest_volume = pipeline.get_highest_volume(data_by_symbol);
     for result in &highest_volume {
         println!("Symbol: {:<8} | Volume: {:>12.0} | Alpha: {:>8.4}", 
                  result.symbol, result.volume, result.alpha);
     }
     
-    println!("\n=== Highest Probable Alpha (Gaussian Copula) ===");
-    let probable_alpha = pipeline.get_highest_probable_alpha(&data_by_symbol);
+    println!("\n=== Highest Probable Alpha (Gaussian Copula - Real Data) ===");
+    let probable_alpha = pipeline.get_highest_probable_alpha(data_by_symbol);
     for result in &probable_alpha {
         let prob_pct = result.probability * 100.0;
         let change_pct = result.change;
@@ -40,73 +148,10 @@ fn main() {
     }
     
     let corr_analysis = pipeline.get_correlation_analysis();
-    println!("\n=== Correlation Analysis ===");
+    println!("\n=== Correlation Analysis ({} Window - Real Data) ===", window_label);
     println!("Matrix Size: {}", corr_analysis.matrix_size);
     println!("Highest Correlation: {:.4}", corr_analysis.highest_correlation);
     println!("Lowest Correlation: {:.4}", corr_analysis.lowest_correlation);
     
     println!("\nPipeline execution complete!");
-}
-
-fn generate_sample_data() -> HashMap<String, Vec<EquityData>> {
-    let symbols = vec![
-        "NQ", "NVDA", "AMD", "WDC", "SLV", 
-        "GS", "NET", "EWJ", "EURUSD", "INRJPY", "BRLGBP"
-    ];
-    
-    let mut data_by_symbol: HashMap<String, Vec<EquityData>> = HashMap::new();
-    
-    for symbol in symbols {
-        let mut data = Vec::new();
-        let base_price = get_base_price(symbol);
-        let current_time = chrono::Utc::now().timestamp_millis();
-        let one_day_ms = 24 * 60 * 60 * 1000;
-        
-        for i in 0..100 {
-            let timestamp = current_time - ((99 - i) * one_day_ms as i64);
-            let price_change = (fastrand::f64() - 0.5) * base_price * 0.05;
-            let open = base_price + price_change;
-            let close = open + (fastrand::f64() - 0.5) * base_price * 0.02;
-            let high = open.max(close) + fastrand::f64() * base_price * 0.01;
-            let low = open.min(close) - fastrand::f64() * base_price * 0.01;
-            let volume = 1_000_000.0 + fastrand::f64() * 5_000_000.0;
-            
-            let equity = EquityData {
-                symbol: symbol.to_string(),
-                timestamp,
-                open,
-                high,
-                low,
-                close,
-                volume,
-                adjusted_close: close,
-                moving_averages: None,
-                rsi: None,
-                macd: None,
-            };
-            
-            data.push(equity);
-        }
-        
-        data_by_symbol.insert(symbol.to_string(), data);
-    }
-    
-    data_by_symbol
-}
-
-fn get_base_price(symbol: &str) -> f64 {
-    match symbol {
-        "NQ" => 16000.0,
-        "NVDA" => 500.0,
-        "AMD" => 150.0,
-        "WDC" => 60.0,
-        "SLV" => 25.0,
-        "GS" => 350.0,
-        "NET" => 80.0,
-        "EWJ" => 65.0,
-        "EURUSD" => 1.08,
-        "INRJPY" => 1.80,
-        "BRLGBP" => 0.252,  // BRL to GBP exchange rate
-        _ => 100.0,
-    }
 }

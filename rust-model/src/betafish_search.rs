@@ -18,11 +18,12 @@ impl BetafishSearch {
         let mut alpha_results: Vec<AlphaResult> = Vec::new();
         
         for (symbol, equity_data) in data {
-            if equity_data.len() < self.window_size {
+            if equity_data.len() < 5 {
                 continue;
             }
             
-            let window_data = &equity_data[equity_data.len() - self.window_size..];
+            let window_size = self.window_size.min(equity_data.len());
+            let window_data = &equity_data[equity_data.len() - window_size..];
             
             let alpha = self.calculate_alpha(window_data);
             let volume = self.calculate_average_volume(window_data);
@@ -100,7 +101,8 @@ impl BetafishSearch {
                 continue;
             }
             
-            let recent_data = &equity_data[equity_data.len().saturating_sub(self.window_size)..];
+            let window_size = self.window_size.min(equity_data.len());
+            let recent_data = &equity_data[equity_data.len().saturating_sub(window_size)..];
             
             let alpha = self.calculate_alpha(recent_data);
             let volume = self.calculate_average_volume(recent_data);

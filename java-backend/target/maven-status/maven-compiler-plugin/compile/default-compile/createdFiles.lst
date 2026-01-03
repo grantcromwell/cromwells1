@@ -7,6 +7,6 @@ com/financial/backend/service/RedisService.class
 com/financial/backend/Main$2.class
 com/financial/backend/Main.class
 com/financial/backend/Main$1.class
+com/financial/backend/service/RealDataFetcher.class
 com/financial/backend/model/EquityData.class
 com/financial/backend/api/EquityApiServer$AllDataHandler.class
-com/financial/backend/api/EquityApiServer$EquityHandler.class

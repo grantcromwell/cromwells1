@@ -1,13 +1,16 @@
-**README: Financial Forecasting System - FinAlpha**
+**README: Financial Forecasting System - Cromwells1 v2.1**
+
+**Version:** 2.1  
+**Last Updated:** December 2025
 
 **1. Introduction**
 
-FinAlpha is a scalable and robust backend system designed for analyzing equity data to identify promising alpha opportunities using Random Forests and Gaussian Processes. This system leverages a hybrid architecture, 
+Cromwell-s1 is a scalable and robust backend system designed for analyzing equity data to identify promising alpha opportunities using Random Forests and Gaussian Processes. This system leverages a hybrid architecture, 
 integrating data ingestion, model training, orchestration, and a user-friendly dashboard for visualizing and exploring investment opportunities.  It’s built for rapid prototyping and production-ready scalability.
 
 **2. System Overview**
 
-FinAlpha provides a comprehensive environment for financial forecasting, automating the process of feature engineering, model training, and risk assessment. It’s designed to be easily deployed and scaled, supporting both 
+Cromwell-s1 provides a comprehensive environment for financial forecasting, automating the process of feature engineering, model training, and risk assessment. It’s designed to be easily deployed and scaled, supporting both 
 local development and production environments.  The core components include:
 
 * **Data Layer:** Stores raw and processed data.
@@ -20,8 +23,8 @@ local development and production environments.  The core components include:
 The system adopts a hybrid architecture to balance speed and accuracy:
 
 * **Data Layer:**
-    * **Redis (Data Storage):** Low-latency data storage for real-time data retrieval and caching (5-7 seconds retention).  Crucial for rapid iteration.
-    * **Java + Redis:**  Data ingestion, processing, and storage (2-week retention).  Handles large datasets efficiently.
+    * **Redis (Data Storage):** Low-latency data storage for real-time data retrieval and caching.
+    * **Java + Redis:**  Data ingestion, processing, and storage (2-week TTL retention).  Handles large datasets efficiently.
     * **Rust (ML Models):**  Runtime environment for the Random Forest and Gaussian Copula models.
     * **Python (Orchestration):**  For workflow management, model training, and data preparation.
 * **ML Models:**
@@ -91,25 +94,11 @@ The system adopts a hybrid architecture to balance speed and accuracy:
 * **API Health:** Monitor the API endpoint.
 * **Logging:**  Utilize a logging library (e.g., `loguru`) to centralize and manage log files.
 
-**9.  Security**
-
-* **API Authentication:** Implement authentication to protect API endpoints.
-* **Redis AUTH:**  Enable the Redis AUTH mechanism to restrict access to data.
-* **HTTPS:**  Enable HTTPS for the API to secure data transmission.
-* **Validation:** Validate all inputs at the API level.
-
 **10.  Documentation**
 
 * **README:**  Provide an overview of the project, its components, and how to get started.
 * **API Documentation:**  For the REST API, document endpoints, request/response formats, and authentication.
 * **Code Comments:**  Add clear and concise comments to the code to improve readability and maintainability.
-
-**11.  License**
-
-*   MIT License
-
----
-
 
 ## Testing
 
@@ -174,8 +163,53 @@ environment:
 
 ### Redis TTL
 
-- Default: 2 weeks (1,209,600 seconds)
+- Default: 2 weeks (configured in `config/config.yaml`)
 - Automatic cleanup via TTL expiration
+- Rolling window maintained for medium-term analysis
+
+### Configuration File
+
+Edit `config/config.yaml` to customize system behavior:
+
+```yaml
+architecture:
+  backend:
+    type: "java"
+    redis:
+      host: "localhost"
+      port: 6379
+      ttl_weeks: 2  # 2-week retention
+    api:
+      host: "localhost"
+      port: 8080
+  
+  models:
+    type: "rust"
+    random_forest:
+      n_trees: 100
+      max_depth: 20
+    gaussian_copula:
+      n_simulations: 10000
+
+data:
+  assets:
+    - "NQ"
+    - "NVDA"
+    - "AMD"
+    - "WDC"
+    - "SLV"
+    - "GS"
+    - "NET"
+    - "EWJ"
+    - "EURUSD"
+    - "INRJPY"
+    - "BRLGBP"
+    - "STLD"
+    - "CRCL"
+    - "UBS"
+    - "TTWO"
+    - "ETHUSD"
+```
 
 ## Troubleshooting
 
@@ -232,7 +266,7 @@ sudo systemctl restart docker
 
 ## Performance
 
-- Redis TTL ensures automatic 2-week data cleanup
+- Redis TTL ensures automatic 50 trading day data cleanup
 - Batch operations for efficient storage
 - Random Forest uses parallel processing
 - Gaussian Copula runs 10,000 simulations

@@ -42,6 +42,11 @@ data:
     - "EURUSD"
     - "INRJPY"
     - "BRLGBP"
+    - "STLD"
+    - "CRCL"
+    - "UBS"
+    - "TTWO"
+    - "ETHUSD"
 
   # Historical data parameters
   history:
